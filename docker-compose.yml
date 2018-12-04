@@ -1,0 +1,63 @@
+version: '2'
+services:
+    master:
+        image: robertcsmith/mariadb10.3-ubuntu16.04-docker
+        environment:
+            MYSQL_ALLOW_EMPTY_PASSWORD: 'Y'
+        volumes:
+            - mysql-sql-master:/docker-entrypoint-initdb.d
+        command: mysqld --log-bin=mariadb-bin --binlog-format=ROW --server-id=3000
+        ports:
+            - "4001:3306"
+
+    slave1:
+        image: robertcsmith/mariadb10.3-ubuntu16.04-docker
+        depends_on:
+            - master
+        environment:
+            MYSQL_ALLOW_EMPTY_PASSWORD: 'Y'
+        volumes:
+            - mysql-sql-slave:/docker-entrypoint-initdb.d
+        command: mysqld --log-bin=mariadb-bin --binlog-format=ROW --server-id=3001 --log-slave-updates
+        ports:
+            - "4002:3306"
+
+    slave2:
+        image: robertcsmith/mariadb10.3-ubuntu16.04-docker
+        depends_on:
+            - master
+        environment:
+            MYSQL_ALLOW_EMPTY_PASSWORD: 'Y'
+        volumes:
+            - mysql-sql-slave:/docker-entrypoint-initdb.d
+        command: mysqld --log-bin=mariadb-bin --binlog-format=ROW --server-id=3002 --log-slave-updates
+        ports:
+            - "4003:3306"
+
+    maxscale:
+        image: robertcsmith/maxscale2.2-ubuntu16.04-docker
+        depends_on:
+            - master
+            - slave1
+            - slave2
+        volumes:
+            - mysql-maxscale-cnf-d:/etc/maxscale.cnf.d
+        ports:
+            - "4006:4006"  # readwrite port
+            - "4008:4008"  # readonly port
+            - "8989:8989"  # REST API port
+
+volumes:
+    mysql-sql-master:
+    mysql-sql-slave:
+    mysql-maxscale-cnf-d:
+
+networks:
+    # Containers which are part of the app should be on this network
+    LAN:
+        name: "LAN"
+        external: false
+    # Containers that have access to the web must connect to this network
+    WAN:
+        name: "WAN"
+        external: true
